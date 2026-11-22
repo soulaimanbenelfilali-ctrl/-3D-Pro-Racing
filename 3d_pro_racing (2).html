@@ -1,0 +1,2546 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>سباق السيارات الاحترافي 3D | Pro Racing</title>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: rgba(15, 23, 42, 0.88);
+      --border: rgba(255, 255, 255, 0.14);
+      --accent: #f59e0b;
+      --accent2: #38bdf8;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif;
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #070b14;
+      overflow: hidden;
+    }
+
+    #app.is-maximized {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* Top Bar */
+    .top-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 12px;
+      background: linear-gradient(180deg, rgba(2, 6, 23, 0.88) 0%, rgba(2, 6, 23, 0) 100%);
+      pointer-events: none;
+    }
+
+    .top-bar > * {
+      pointer-events: auto;
+    }
+
+    .hud-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .hud-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    }
+
+    .hud-pill .val {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hud-pill.blue .val {
+      color: var(--accent2);
+    }
+
+    .hud-pill.green .val {
+      color: var(--success);
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: transform 0.12s ease, background 0.15s ease;
+    }
+
+    .icon-btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.95);
+    }
+
+    .icon-btn.wa {
+      background: rgba(22, 163, 74, 0.88);
+      border-color: rgba(74, 222, 128, 0.4);
+    }
+
+    .icon-btn.fb {
+      background: rgba(29, 78, 216, 0.88);
+      border-color: rgba(96, 165, 250, 0.4);
+    }
+
+    /* Game Canvas */
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    /* Track Progress Bar (شريط الوصول للمضمار) */
+    .track-progress-wrap {
+      position: absolute;
+      top: 48px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 24;
+      width: min(380px, 82vw);
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.82);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(6px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .track-progress-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #f8fafc;
+      white-space: nowrap;
+    }
+
+    .track-progress-bar {
+      position: relative;
+      flex: 1;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      overflow: visible;
+    }
+
+    .track-progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #38bdf8, #f59e0b);
+    }
+
+    .track-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      border: 1.5px solid #fff;
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
+    }
+
+    .track-dot.player {
+      width: 14px;
+      height: 14px;
+      background: #38bdf8;
+      border-color: #fef08a;
+      z-index: 3;
+    }
+
+    /* Road Guidance Banner */
+    #roadSignAlert {
+      position: absolute;
+      top: 84px;
+      left: 50%;
+      transform: translateX(-50%) scale(0.9);
+      z-index: 25;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      border: 2px solid var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+      white-space: nowrap;
+    }
+
+    #roadSignAlert.visible {
+      opacity: 1;
+      transform: translateX(-50%) scale(1);
+    }
+
+    /* Nitro & Speedometer Bottom Center */
+    .speed-hud {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 22;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .speed-box {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.82);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
+    }
+
+    .speed-num {
+      font-size: 26px;
+      font-weight: 900;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .speed-unit {
+      font-size: 11px;
+      color: var(--accent2);
+      font-weight: 700;
+    }
+
+    .nitro-bar-wrap {
+      width: 150px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+
+    .nitro-bar-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #06b6d4, #3b82f6, #a855f7);
+      transition: width 0.08s linear;
+    }
+
+    /* Touch Controls */
+    .touch-controls {
+      position: absolute;
+      bottom: 16px;
+      left: 14px;
+      right: 14px;
+      z-index: 26;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      pointer-events: none;
+    }
+
+    .touch-controls.hidden {
+      display: none;
+    }
+
+    .touch-pad {
+      display: flex;
+      gap: 10px;
+      pointer-events: auto;
+    }
+
+    .t-btn {
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(6px);
+      color: #fff;
+      font-size: 22px;
+      font-weight: 900;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+      transition: transform 0.08s ease, background 0.1s ease;
+    }
+
+    .t-btn span.lbl {
+      font-size: 10px;
+      font-weight: 700;
+      margin-top: 2px;
+      opacity: 0.9;
+    }
+
+    .t-btn.active, .t-btn:active {
+      transform: scale(0.92);
+      background: rgba(56, 189, 248, 0.45);
+      border-color: #38bdf8;
+    }
+
+    .t-btn.gas {
+      background: rgba(22, 163, 74, 0.72);
+      border-color: rgba(74, 222, 128, 0.5);
+      height: 70px;
+    }
+
+    .t-btn.gas.active, .t-btn.gas:active {
+      background: rgba(34, 197, 94, 0.92);
+    }
+
+    .t-btn.brake {
+      background: rgba(220, 38, 38, 0.72);
+      border-color: rgba(248, 113, 113, 0.5);
+    }
+
+    .t-btn.brake.active, .t-btn.brake:active {
+      background: rgba(239, 68, 68, 0.92);
+    }
+
+    .t-btn.nitro {
+      background: rgba(37, 99, 235, 0.78);
+      border-color: rgba(96, 165, 250, 0.6);
+    }
+
+    .t-btn.nitro.active, .t-btn.nitro:active {
+      background: rgba(59, 130, 246, 0.95);
+    }
+
+    /* Countdown Overlay */
+    #countdownOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 35;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-size: clamp(54px, 12vw, 96px);
+      font-weight: 900;
+      color: #facc15;
+      text-shadow: 0 6px 28px rgba(0, 0, 0, 0.85);
+    }
+
+    /* Modals / Overlays */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(2, 6, 23, 0.76);
+      backdrop-filter: blur(8px);
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 470px;
+      max-height: 92vh;
+      overflow-y: auto;
+      background: linear-gradient(160deg, #0f172a 0%, #1e293b 100%);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 22px;
+      padding: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.65);
+    }
+
+    .card h1, .card h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .subtitle {
+      margin: 0 0 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn-primary, .btn-secondary {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: none;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: transform 0.12s ease, filter 0.15s ease;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      color: #fff;
+      box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35);
+    }
+
+    .btn-primary.blue {
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      box-shadow: 0 8px 20px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+    }
+
+    .btn-primary:hover, .btn-secondary:hover {
+      filter: brightness(1.08);
+    }
+
+    .btn-primary:active, .btn-secondary:active {
+      transform: scale(0.98);
+    }
+
+    .share-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .share-btn {
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: none;
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .share-btn.wa { background: #16a34a; }
+    .share-btn.fb { background: #1877f2; }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin: 10px 0;
+    }
+
+    .input-field {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(2, 6, 23, 0.7);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .input-field:focus {
+      border-color: var(--accent2);
+    }
+
+    .room-box {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(2, 6, 23, 0.65);
+      border: 1px dashed rgba(56, 189, 248, 0.5);
+      text-align: center;
+      margin: 10px 0;
+    }
+
+    .room-code {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      color: var(--accent2);
+      margin: 4px 0;
+      direction: ltr;
+    }
+
+    .status-text {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 6px;
+      text-align: center;
+    }
+
+    .controls-hint {
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .toast {
+      position: absolute;
+      top: 58px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 60;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: #0f172a;
+      border: 1px solid var(--accent2);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    @media (max-width: 600px) {
+      .hud-pill { font-size: 11px; padding: 4px 8px; }
+      .icon-btn { font-size: 11px; padding: 5px 8px; }
+      .t-btn { width: 54px; height: 54px; font-size: 20px; }
+      .t-btn.gas { height: 64px; }
+      .speed-hud { bottom: 92px; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <!-- Top HUD & Quick Actions -->
+  <div class="top-bar">
+    <div class="hud-group">
+      <div class="hud-pill">المركز: <span class="val" id="hudPos">1/5</span></div>
+      <div class="hud-pill blue">الدورة: <span class="val" id="hudLap">1/3</span></div>
+      <div class="hud-pill green">المسافة: <span class="val" id="hudDist">0 م</span></div>
+      <div class="hud-pill" id="onlineBadge" style="display:none;">أونلاين: <span class="val" id="onlineStatus">متصل</span></div>
+    </div>
+
+    <div class="hud-group">
+      <button class="icon-btn" id="btnToggleTouch" title="إظهار/إخفاء أزرار اللمس">🎮 اللمس</button>
+      <button class="icon-btn" id="btnSound" title="كتم/تشغيل الصوت">🔊</button>
+      <button class="icon-btn" id="btnFullscreen" title="تكبير أو تصغير الشاشة">⛶ تكبير</button>
+      <button class="icon-btn wa" id="btnTopWa" title="مشاركة على واتساب">واتساب</button>
+      <button class="icon-btn fb" id="btnTopFb" title="مشاركة على فيسبوك">فيسبوك</button>
+      <button class="icon-btn" id="btnPause" title="إيقاف مؤقت">⏸</button>
+    </div>
+  </div>
+
+  <!-- Track Progress Bar -->
+  <div class="track-progress-wrap" id="trackProgressWrap">
+    <span class="track-progress-label">📍 المضمار</span>
+    <div class="track-progress-bar" id="trackProgressBar">
+      <div class="track-progress-fill" id="trackProgressFill"></div>
+      <div class="track-dot" id="dotAi1" style="background:#1d4ed8;"></div>
+      <div class="track-dot" id="dotAi2" style="background:#dc2626;"></div>
+      <div class="track-dot" id="dotAi3" style="background:#0284c7;"></div>
+      <div class="track-dot" id="dotAi4" style="background:#eab308;"></div>
+      <div class="track-dot player" id="dotPlayer"></div>
+    </div>
+    <span class="track-progress-label" id="trackProgressPct">0%</span>
+  </div>
+
+  <!-- Road Sign Guidance Alert -->
+  <div id="roadSignAlert">⚠️ انتباه</div>
+
+  <!-- Main 3D Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Speedometer & Nitro -->
+  <div class="speed-hud">
+    <div class="speed-box">
+      <span class="speed-num" id="hudSpeed">0</span>
+      <span class="speed-unit">كم/س</span>
+    </div>
+    <div class="nitro-bar-wrap" title="طاقة النيترو">
+      <div class="nitro-bar-fill" id="nitroFill"></div>
+    </div>
+  </div>
+
+  <!-- Mobile / Touch Controls -->
+  <div class="touch-controls" id="touchControls">
+    <div class="touch-pad">
+      <button class="t-btn" id="btnLeft" aria-label="يسار">◀<span class="lbl">يسار</span></button>
+      <button class="t-btn" id="btnRight" aria-label="يمين">▶<span class="lbl">يمين</span></button>
+    </div>
+    <div class="touch-pad">
+      <button class="t-btn brake" id="btnBrake" aria-label="فراميل">🛑<span class="lbl">فراميل</span></button>
+      <button class="t-btn nitro" id="btnNitro" aria-label="نيترو">⚡<span class="lbl">نيترو</span></button>
+      <button class="t-btn gas" id="btnGas" aria-label="سرعة">🚀<span class="lbl">سرعة</span></button>
+    </div>
+  </div>
+
+  <!-- Countdown -->
+  <div id="countdownOverlay">3</div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <!-- Main Menu Modal -->
+  <div class="overlay" id="menuOverlay">
+    <div class="card">
+      <h1>🏎️ سباق الطريق السريع 3D</h1>
+      <p class="subtitle">
+        نافس 4 سيارات افتراضية على طريق حقيقي مع أنفاق وإشارات إرشادية، أو العب أونلاين مباشرة مع أصدقائك!
+      </p>
+
+      <div class="input-row">
+        <input type="text" id="playerNameInput" class="input-field" placeholder="اكتب اسمك هنا..." value="سليمان" maxlength="16" />
+      </div>
+
+      <div class="btn-stack">
+        <button class="btn-primary" id="btnStartSolo">🏁 ابدأ السباق الفردي (ضد 4 سيارات)</button>
+        <button class="btn-primary blue" id="btnOpenMulti">🌐 اللعب أونلاين مع الأصدقاء</button>
+      </div>
+
+      <div class="share-row">
+        <button class="share-btn wa" id="btnShareWaMenu">📲 مشاركة على واتساب</button>
+        <button class="share-btn fb" id="btnShareFbMenu">📘 مشاركة على فيسبوك</button>
+      </div>
+
+      <div class="controls-hint">
+        <b>الحاسوب:</b> الأسهم (◀ ▶ ▲ ▼) أو WASD للقيادة، و <b>Space</b> للنيترو.<br />
+        <b>الهاتف:</b> أزرار الاتجاه والسرعة والفراميل والنيترو على الشاشة.<br />
+        <b>الشاشة:</b> اضغط <b>⛶ تكبير</b> لتكبير أو تصغير شاشة اللعب.
+      </div>
+    </div>
+  </div>
+
+  <!-- Multiplayer Modal -->
+  <div class="overlay hidden" id="multiOverlay">
+    <div class="card">
+      <h2>🌐 اللعب أونلاين مع الأصدقاء</h2>
+      <p class="subtitle">
+        أنشئ غرفة وأرسل الكود لصديقك عبر واتساب أو فيسبوك، أو أدخل كود غرفته للسباق معاً في نفس المضمار!
+      </p>
+
+      <div class="btn-stack">
+        <button class="btn-primary blue" id="btnCreateRoom">➕ إنشاء غرفة جديدة</button>
+      </div>
+
+      <div class="room-box" id="createdRoomBox" style="display:none;">
+        <div style="font-size:12px; color:#cbd5e1;">كود الغرفة الخاص بك:</div>
+        <div class="room-code" id="myRoomCode">------</div>
+        <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+          <button class="icon-btn" id="btnCopyCode">📋 نسخ الكود</button>
+          <button class="icon-btn wa" id="btnInviteWa">📲 دعوة واتساب</button>
+          <button class="icon-btn fb" id="btnInviteFb">📘 دعوة فيسبوك</button>
+        </div>
+        <div class="status-text" id="hostWaitStatus">في انتظار انضمام صديقك...</div>
+      </div>
+
+      <div style="margin: 14px 0 6px; font-size:13px; font-weight:700; text-align:center;">أو انضم لغرفة صديق:</div>
+      <div class="input-row">
+        <input type="text" id="joinCodeInput" class="input-field" placeholder="أدخل كود الغرفة (مثلاً: RACE-4821)" style="text-align:center; direction:ltr;" />
+        <button class="btn-primary" id="btnJoinRoom" style="width:auto; padding:10px 18px;">دخول</button>
+      </div>
+
+      <div class="status-text" id="multiStatusText"></div>
+
+      <div class="btn-stack" style="margin-top:14px;">
+        <button class="btn-primary" id="btnStartMultiRace" style="display:none;">🏁 بدء السباق الآن!</button>
+        <button class="btn-secondary" id="btnBackMenu">⬅ رجوع للقائمة الرئيسية</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Finish / Pause Modal -->
+  <div class="overlay hidden" id="endOverlay">
+    <div class="card">
+      <h2 id="endTitle">🏆 نهاية السباق!</h2>
+      <p class="subtitle" id="endSummary">أنهيت السباق بنجاح!</p>
+
+      <div class="btn-stack">
+        <button class="btn-primary" id="btnRestartRace">🔄 إعادة السباق</button>
+        <button class="btn-secondary" id="btnResumeRace" style="display:none;">▶ متابعة السباق</button>
+        <button class="btn-secondary" id="btnEndToMenu">🏠 القائمة الرئيسية</button>
+      </div>
+
+      <div class="share-row">
+        <button class="share-btn wa" id="btnShareWaEnd">📲 مشاركة النتيجة واتساب</button>
+        <button class="share-btn fb" id="btnShareFbEnd">📘 مشاركة النتيجة فيسبوك</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ==================== DOM ELEMENTS ====================
+  const appEl = document.getElementById('app');
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const hudPos = document.getElementById('hudPos');
+  const hudLap = document.getElementById('hudLap');
+  const hudDist = document.getElementById('hudDist');
+  const hudSpeed = document.getElementById('hudSpeed');
+  const nitroFill = document.getElementById('nitroFill');
+  const roadSignAlert = document.getElementById('roadSignAlert');
+  const trackProgressFill = document.getElementById('trackProgressFill');
+  const trackProgressPct = document.getElementById('trackProgressPct');
+  const dotPlayer = document.getElementById('dotPlayer');
+  const dotAis = [
+    document.getElementById('dotAi1'),
+    document.getElementById('dotAi2'),
+    document.getElementById('dotAi3'),
+    document.getElementById('dotAi4')
+  ];
+  const countdownOverlay = document.getElementById('countdownOverlay');
+  const toastEl = document.getElementById('toast');
+
+  const menuOverlay = document.getElementById('menuOverlay');
+  const multiOverlay = document.getElementById('multiOverlay');
+  const endOverlay = document.getElementById('endOverlay');
+  const endTitle = document.getElementById('endTitle');
+  const endSummary = document.getElementById('endSummary');
+
+  const playerNameInput = document.getElementById('playerNameInput');
+  const touchControls = document.getElementById('touchControls');
+  const btnToggleTouch = document.getElementById('btnToggleTouch');
+  const btnSound = document.getElementById('btnSound');
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  const btnPause = document.getElementById('btnPause');
+
+  const onlineBadge = document.getElementById('onlineBadge');
+  const onlineStatus = document.getElementById('onlineStatus');
+  const createdRoomBox = document.getElementById('createdRoomBox');
+  const myRoomCodeEl = document.getElementById('myRoomCode');
+  const hostWaitStatus = document.getElementById('hostWaitStatus');
+  const joinCodeInput = document.getElementById('joinCodeInput');
+  const multiStatusText = document.getElementById('multiStatusText');
+  const btnStartMultiRace = document.getElementById('btnStartMultiRace');
+
+  const btnRestartRace = document.getElementById('btnRestartRace');
+  const btnResumeRace = document.getElementById('btnResumeRace');
+
+  // ==================== AUDIO SYNTHESIZER ====================
+  let audioCtx = null;
+  let soundEnabled = true;
+  let engineOsc = null;
+  let engineGain = null;
+
+  function initAudio() {
+    if (!soundEnabled) return;
+    try {
+      if (!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      if (!engineOsc && audioCtx) {
+        engineOsc = audioCtx.createOscillator();
+        engineGain = audioCtx.createGain();
+        engineOsc.type = 'sawtooth';
+        engineOsc.frequency.value = 55;
+        engineGain.gain.value = 0.0;
+        engineOsc.connect(engineGain);
+        engineGain.connect(audioCtx.destination);
+        engineOsc.start();
+      }
+    } catch (e) {}
+  }
+
+  function updateEngineSound(speedRatio, isPlaying) {
+    if (!audioCtx || !engineOsc || !engineGain) return;
+    const now = audioCtx.currentTime;
+    if (!soundEnabled || !isPlaying) {
+      engineGain.gain.setTargetAtTime(0, now, 0.08);
+      return;
+    }
+    const freq = 52 + speedRatio * 135 + (state.nitroActive ? 45 : 0);
+    engineOsc.frequency.setTargetAtTime(freq, now, 0.06);
+    engineGain.gain.setTargetAtTime(0.035 + speedRatio * 0.045, now, 0.08);
+  }
+
+  function playTone(freq, dur = 0.14, type = 'triangle', vol = 0.12) {
+    if (!soundEnabled) return;
+    try {
+      initAudio();
+      if (!audioCtx) return;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.value = vol;
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + dur);
+    } catch (e) {}
+  }
+
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toastEl.classList.remove('show'), 2500);
+  }
+
+  // ==================== TRACK & ROAD CONSTANTS ====================
+  const SEGMENT_LENGTH = 200;
+  const RUMBLE_LENGTH = 3;
+  const ROAD_WIDTH = 2200;
+  const LANES = 4;
+  const DRAW_DISTANCE = 220;
+  const CAMERA_HEIGHT = 1050;
+  const CAMERA_DEPTH = 0.84;
+  const TOTAL_LAPS = 3;
+
+  let segments = [];
+  let trackLength = 0;
+
+  function buildTrack() {
+    segments = [];
+    function addSegment(curve, y, features = {}) {
+      const n = segments.length;
+      segments.push({
+        index: n,
+        p1: { world: { y: segments.length ? segments[n - 1].p2.world.y : 0, z: n * SEGMENT_LENGTH }, camera: {}, screen: {} },
+        p2: { world: { y: y, z: (n + 1) * SEGMENT_LENGTH }, camera: {}, screen: {} },
+        curve: curve,
+        color: Math.floor(n / RUMBLE_LENGTH) % 2
+          ? { road: '#334155', grass: '#15803d', rumble: '#dc2626', lane: '#f8fafc' }
+          : { road: '#374151', grass: '#15803d', rumble: '#f8fafc', lane: 'transparent' },
+        tunnel: !!features.tunnel,
+        sign: features.sign || null,
+        trees: features.trees || [],
+        buildings: (!features.tunnel && n % 12 === 0) ? [-1, 1] : [],
+        lamps: (!features.tunnel && n % 6 === 0) ? [-1, 1] : [],
+        crowd: (!features.tunnel && n % 5 === 0) ? [-1, 1] : []
+      });
+    }
+
+    function addRoad(enter, hold, leave, curve, hill, opts = {}) {
+      const startY = segments.length ? segments[segments.length - 1].p2.world.y : 0;
+      const endY = startY + hill * SEGMENT_LENGTH;
+      const total = enter + hold + leave;
+      for (let i = 0; i < enter; i++) {
+        const t = i / enter;
+        addSegment(curve * (0.5 - 0.5 * Math.cos(t * Math.PI)), startY + (endY - startY) * (i / total), {
+          trees: (i % 4 === 0) ? [-1, 1] : []
+        });
+      }
+      for (let i = 0; i < hold; i++) {
+        const isTunnel = opts.tunnel && i > 4 && i < hold - 4;
+        let sign = null;
+        if (i === 0 && opts.sign) sign = opts.sign;
+        if (opts.extraSignAt && i === opts.extraSignAt) sign = opts.extraSign;
+        addSegment(curve, startY + (endY - startY) * ((enter + i) / total), {
+          tunnel: isTunnel,
+          sign,
+          trees: (!isTunnel && i % 3 === 0) ? [-1, 1] : []
+        });
+      }
+      for (let i = 0; i < leave; i++) {
+        const t = i / leave;
+        addSegment(curve * (0.5 + 0.5 * Math.cos(t * Math.PI)), startY + (endY - startY) * ((enter + hold + i) / total), {
+          trees: (i % 4 === 0) ? [-1, 1] : []
+        });
+      }
+    }
+
+    // Straight start + speed sign 100
+    addRoad(14, 55, 14, 0, 0, {
+      sign: { side: 1, type: 'speed', text: '100', alert: '🚦 السرعة الموصى بها: 100 كم/س' },
+      extraSignAt: 25,
+      extraSign: { side: 1, type: 'wood', text: 'PRO RACING' }
+    });
+    // Gentle right curve
+    addRoad(20, 55, 20, 2.1, 10, {
+      sign: { side: -1, type: 'curveR', text: '↱', alert: '↱ منعطف يمين أمامك' }
+    });
+    // Open scenic highway straight
+    addRoad(12, 65, 12, 0, -4, {
+      sign: { side: 1, type: 'speed', text: '110', alert: '🛣️ طريق سريع مفتوح - السرعة 110' }
+    });
+    // Long scenic city highway + Left S-curve
+    addRoad(20, 60, 20, -2.4, 12, {
+      sign: { side: 1, type: 'curveL', text: '↰', alert: '↰ منعطف يسار حاد' }
+    });
+    // High-speed straight with 120 sign
+    addRoad(15, 70, 15, 0, -12, {
+      sign: { side: 1, type: 'speed', text: '120', alert: '⚡ منطقة سرعة مفتوحة 120 كم/س' }
+    });
+    // Sweeping right curve + hills
+    addRoad(18, 55, 18, 2.0, 8, {
+      sign: { side: -1, type: 'curveR', text: '↱', alert: '↱ منعطف طويل يمين' }
+    });
+    // Open high-speed straight before final curve
+    addRoad(12, 55, 12, 0, -8, {
+      sign: { side: 1, type: 'speed', text: '120', alert: '⚡ مقطع سرعة مفتوح نحو النهاية!' }
+    });
+    // Final curve + Finish straight
+    addRoad(16, 45, 16, -1.7, 0, {
+      sign: { side: 1, type: 'curveL', text: '↰', alert: '↰ منعطف أخير نحو خط النهاية' }
+    });
+    addRoad(12, 50, 12, 0, 0, {
+      sign: { side: 1, type: 'finish', text: '🏁', alert: '🏁 خط النهاية قريب!' }
+    });
+
+    trackLength = segments.length * SEGMENT_LENGTH;
+    buildObstacles();
+  }
+
+  let obstacles = [];
+  function buildObstacles() {
+    obstacles = [];
+    // Place fair, single-lane obstacles along the highway (leaving 3 lanes open to dodge)
+    const patternLanes = [1, 2, 0, 3, 1, 2, 0, 3, 2, 1];
+    let pIdx = 0;
+    for (let segIdx = 48; segIdx < segments.length - 25; segIdx += 38) {
+      if (segments[segIdx].tunnel) continue;
+      const lane = patternLanes[pIdx % patternLanes.length];
+      obstacles.push({
+        segIdx,
+        z: segIdx * SEGMENT_LENGTH,
+        lane,
+        offset: LANE_CENTERS[lane],
+        type: (pIdx % 2 === 0) ? 'barrier' : 'cones',
+        hitCooldown: 0
+      });
+      pIdx++;
+    }
+  }
+
+  // ==================== GAME STATE ====================
+  const state = {
+    mode: 'menu', // menu | countdown | playing | paused | finished
+    playerName: 'سليمان',
+    isOnline: false,
+    playerX: 0, // -1 to 1 (road normalized)
+    position: 0, // Z along track
+    totalDistance: 0,
+    speed: 0,
+    maxSpeed: 12000,
+    nitro: 100,
+    nitroActive: false,
+    lap: 1,
+    rank: 1,
+    steerVisual: 0,
+    skidMarks: [],
+    lastAlertIndex: -1,
+    alertTimer: 0,
+    startTime: 0,
+    elapsedTime: 0,
+    keys: { left: false, right: false, gas: false, brake: false, nitro: false }
+  };
+
+  // 4 Coordinated Ferrari GT Racers in official road lanes
+  const LANE_CENTERS = [-0.72, -0.24, 0.24, 0.72];
+  const aiCars = [
+    { id: 'ai1', name: 'فيراري أزرق ملكي', color: '#1d4ed8', colorDark: '#1e3a8a', colorLight: '#60a5fa', stripe: '#f8fafc', lane: 0, z: 700,  offset: -0.72, speed: 0, targetOffset: -0.72, baseSpeed: 8800 },
+    { id: 'ai2', name: 'فيراري أحمر سباق', color: '#dc2626', colorDark: '#7f1d1d', colorLight: '#f87171', stripe: '#fef08a', lane: 1, z: 1050, offset: -0.24, speed: 0, targetOffset: -0.24, baseSpeed: 8500 },
+    { id: 'ai3', name: 'فيراري أزرق سماوي', color: '#0284c7', colorDark: '#0c4a6e', colorLight: '#38bdf8', stripe: '#ffffff', lane: 2, z: 1400, offset: 0.24,  speed: 0, targetOffset: 0.24,  baseSpeed: 9100 },
+    { id: 'ai4', name: 'فيراري أصفر مودينا', color: '#eab308', colorDark: '#854d0e', colorLight: '#fef08a', stripe: '#0f172a', lane: 3, z: 1750, offset: 0.72,  speed: 0, targetOffset: 0.72,  baseSpeed: 9400 }
+  ];
+
+  // Remote Online Opponent
+  let remotePlayer = {
+    connected: false,
+    name: 'صديقك',
+    z: 0,
+    offset: 0.35,
+    speed: 0,
+    lap: 1,
+    nitro: false
+  };
+
+  // ==================== MULTIPLAYER (PeerJS + BroadcastChannel) ====================
+  let peer = null;
+  let conn = null;
+  let bc = null;
+  let isHost = false;
+  let currentRoomCode = '';
+
+  function generateRoomCode() {
+    const num = Math.floor(1000 + Math.random() * 8999);
+    return 'RACE-' + num;
+  }
+
+  function setupConnectionEvents(connection) {
+    conn = connection;
+    conn.on('open', () => {
+      remotePlayer.connected = true;
+      state.isOnline = true;
+      onlineBadge.style.display = 'inline-flex';
+      onlineStatus.textContent = 'متصل';
+      multiStatusText.textContent = '✅ تم الاتصال بصديقك بنجاح!';
+      hostWaitStatus.textContent = '✅ انضم صديقك للغرفة!';
+      btnStartMultiRace.style.display = 'inline-flex';
+      conn.send({ type: 'hello', name: playerNameInput.value.trim() || 'لاعب' });
+      showToast('تم الاتصال بصديقك!');
+    });
+
+    conn.on('data', (data) => {
+      if (!data || typeof data !== 'object') return;
+      if (data.type === 'hello') {
+        remotePlayer.name = data.name || 'صديقك';
+      } else if (data.type === 'start') {
+        multiOverlay.classList.add('hidden');
+        startRace(true);
+      } else if (data.type === 'sync') {
+        remotePlayer.z = data.z || 0;
+        remotePlayer.offset = data.offset || 0;
+        remotePlayer.speed = data.speed || 0;
+        remotePlayer.lap = data.lap || 1;
+        remotePlayer.nitro = !!data.nitro;
+        if (data.name) remotePlayer.name = data.name;
+      }
+    });
+
+    conn.on('close', () => {
+      remotePlayer.connected = false;
+      onlineStatus.textContent = 'منفصل';
+      showToast('انقطع الاتصال بصديقك');
+    });
+  }
+
+  function initBroadcastChannel(roomCode) {
+    try {
+      if (bc) bc.close();
+      bc = new BroadcastChannel('pro_racing_' + roomCode);
+      bc.onmessage = (ev) => {
+        const data = ev.data;
+        if (!data) return;
+        if (data.sender === peerIdSelf) return;
+        if (data.type === 'join_local') {
+          remotePlayer.connected = true;
+          remotePlayer.name = data.name || 'صديقك';
+          state.isOnline = true;
+          onlineBadge.style.display = 'inline-flex';
+          onlineStatus.textContent = 'متصل';
+          hostWaitStatus.textContent = '✅ انضم صديقك للغرفة!';
+          btnStartMultiRace.style.display = 'inline-flex';
+        } else if (data.type === 'start') {
+          multiOverlay.classList.add('hidden');
+          startRace(true);
+        } else if (data.type === 'sync') {
+          remotePlayer.z = data.z || 0;
+          remotePlayer.offset = data.offset || 0;
+          remotePlayer.speed = data.speed || 0;
+          remotePlayer.lap = data.lap || 1;
+          remotePlayer.nitro = !!data.nitro;
+        }
+      };
+    } catch (e) {}
+  }
+
+  const peerIdSelf = 'p_' + Math.random().toString(36).slice(2, 9);
+
+  function createOnlineRoom() {
+    currentRoomCode = generateRoomCode();
+    isHost = true;
+    myRoomCodeEl.textContent = currentRoomCode;
+    createdRoomBox.style.display = 'block';
+    hostWaitStatus.textContent = 'جاري تجهيز الغرفة...';
+    multiStatusText.textContent = '';
+
+    initBroadcastChannel(currentRoomCode);
+
+    if (typeof Peer !== 'undefined') {
+      try {
+        if (peer) peer.destroy();
+        peer = new Peer('proracing-' + currentRoomCode.toLowerCase());
+        peer.on('open', () => {
+          hostWaitStatus.textContent = 'الغرفة جاهزة! شارك الكود مع صديقك للانضمام.';
+        });
+        peer.on('connection', (c) => {
+          setupConnectionEvents(c);
+        });
+        peer.on('error', () => {
+          hostWaitStatus.textContent = 'الغرفة جاهزة محلياً (أو شارك الكود). يمكنك البدء الآن!';
+          btnStartMultiRace.style.display = 'inline-flex';
+        });
+      } catch (e) {
+        hostWaitStatus.textContent = 'الغرفة جاهزة! يمكنك بدء السباق.';
+        btnStartMultiRace.style.display = 'inline-flex';
+      }
+    } else {
+      btnStartMultiRace.style.display = 'inline-flex';
+    }
+  }
+
+  function joinOnlineRoom() {
+    const code = joinCodeInput.value.trim().toUpperCase();
+    if (!code) {
+      multiStatusText.textContent = '⚠️ أدخل كود الغرفة أولاً';
+      return;
+    }
+    currentRoomCode = code;
+    isHost = false;
+    multiStatusText.textContent = '⏳ جاري الاتصال بالغرفة ' + code + '...';
+
+    initBroadcastChannel(code);
+    if (bc) {
+      bc.postMessage({ type: 'join_local', sender: peerIdSelf, name: playerNameInput.value.trim() || 'لاعب' });
+    }
+
+    if (typeof Peer !== 'undefined') {
+      try {
+        if (peer) peer.destroy();
+        peer = new Peer();
+        peer.on('open', () => {
+          const c = peer.connect('proracing-' + code.toLowerCase());
+          setupConnectionEvents(c);
+          setTimeout(() => {
+            if (!remotePlayer.connected) {
+              multiStatusText.textContent = 'تم تفعيل الوضع التشاركي للغرفة ' + code + ' — اضغط بدء السباق!';
+              btnStartMultiRace.style.display = 'inline-flex';
+            }
+          }, 2500);
+        });
+        peer.on('error', () => {
+          multiStatusText.textContent = 'تعذر الاتصال بالخادم، جاري المتابعة في الغرفة.';
+          btnStartMultiRace.style.display = 'inline-flex';
+        });
+      } catch (e) {
+        btnStartMultiRace.style.display = 'inline-flex';
+      }
+    } else {
+      btnStartMultiRace.style.display = 'inline-flex';
+    }
+  }
+
+  function sendSyncPacket() {
+    const payload = {
+      type: 'sync',
+      sender: peerIdSelf,
+      name: state.playerName,
+      z: state.position,
+      offset: state.playerX,
+      speed: state.speed,
+      lap: state.lap,
+      nitro: state.nitroActive
+    };
+    if (conn && conn.open) {
+      try { conn.send(payload); } catch (e) {}
+    }
+    if (bc) {
+      try { bc.postMessage(payload); } catch (e) {}
+    }
+  }
+
+  // ==================== SOCIAL SHARING (WHATSAPP & FACEBOOK) ====================
+  function getShareMessage(isInvite = false) {
+    const dist = Math.floor(state.totalDistance / 100);
+    if (isInvite && currentRoomCode) {
+      return `🏎️ تحدي سباق السيارات 3D! انضم لغرفتي الآن بكود: ${currentRoomCode} لنلعب أونلاين معاً!`;
+    }
+    if (state.mode === 'finished') {
+      return `🏆 أنهيت سباق السيارات 3D في المركز ${state.rank}/5 وقطعت ${dist} متر! هل تستطيع تحطيم رقمي؟`;
+    }
+    return `🏎️ العب معي لعبة سباق السيارات الاحترافية 3D أونلاين! مضمار حقيقي وإشارات طريق ومنافسة قوية!`;
+  }
+
+  function shareWhatsApp(isInvite = false) {
+    const text = encodeURIComponent(getShareMessage(isInvite) + '\n' + window.location.href);
+    window.open('https://wa.me/?text=' + text, '_blank', 'noopener,noreferrer');
+  }
+
+  function shareFacebook(isInvite = false) {
+    const quote = encodeURIComponent(getShareMessage(isInvite));
+    const url = encodeURIComponent(window.location.href.startsWith('http') ? window.location.href : 'https://google.com');
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${quote}`, '_blank', 'noopener,noreferrer');
+  }
+
+  // ==================== FULLSCREEN ZOOM IN / OUT ====================
+  function toggleFullscreen() {
+    const isNativeFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (!isNativeFs && !appEl.classList.contains('is-maximized')) {
+      if (appEl.requestFullscreen) {
+        appEl.requestFullscreen().catch(() => {
+          appEl.classList.add('is-maximized');
+          updateFsButton();
+        });
+      } else {
+        appEl.classList.add('is-maximized');
+      }
+    } else {
+      if (isNativeFs && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {
+          appEl.classList.remove('is-maximized');
+        });
+      }
+      appEl.classList.remove('is-maximized');
+    }
+    setTimeout(() => {
+      resizeCanvas();
+      updateFsButton();
+    }, 80);
+  }
+
+  function updateFsButton() {
+    const active = !!(document.fullscreenElement || document.webkitFullscreenElement || appEl.classList.contains('is-maximized'));
+    btnFullscreen.textContent = active ? '🗗 تصغير' : '⛶ تكبير';
+  }
+
+  document.addEventListener('fullscreenchange', () => {
+    resizeCanvas();
+    updateFsButton();
+  });
+
+  // ==================== RACE LIFECYCLE ====================
+  function resetRaceData() {
+    state.playerName = playerNameInput.value.trim() || 'سليمان';
+    state.playerX = 0;
+    state.position = 0;
+    state.totalDistance = 0;
+    state.speed = 0;
+    state.nitro = 100;
+    state.nitroActive = false;
+    state.lap = 1;
+    state.rank = 1;
+    state.steerVisual = 0;
+    state.lastAlertIndex = -1;
+    state.alertTimer = 0;
+    state.elapsedTime = 0;
+
+    aiCars[0].z = 650;  aiCars[0].lane = 0; aiCars[0].offset = LANE_CENTERS[0]; aiCars[0].targetOffset = LANE_CENTERS[0]; aiCars[0].speed = 0;
+    aiCars[1].z = 950;  aiCars[1].lane = 1; aiCars[1].offset = LANE_CENTERS[1]; aiCars[1].targetOffset = LANE_CENTERS[1]; aiCars[1].speed = 0;
+    aiCars[2].z = 1250; aiCars[2].lane = 2; aiCars[2].offset = LANE_CENTERS[2]; aiCars[2].targetOffset = LANE_CENTERS[2]; aiCars[2].speed = 0;
+    aiCars[3].z = 1550; aiCars[3].lane = 3; aiCars[3].offset = LANE_CENTERS[3]; aiCars[3].targetOffset = LANE_CENTERS[3]; aiCars[3].speed = 0;
+    for (const obs of obstacles) obs.hitCooldown = 0;
+  }
+
+  function startRace(onlineMode = false) {
+    initAudio();
+    state.isOnline = onlineMode;
+    resetRaceData();
+    menuOverlay.classList.add('hidden');
+    multiOverlay.classList.add('hidden');
+    endOverlay.classList.add('hidden');
+
+    state.mode = 'countdown';
+    let count = 3;
+    countdownOverlay.style.display = 'flex';
+    countdownOverlay.textContent = count;
+    playTone(520, 0.15, 'sine', 0.15);
+
+    const timer = setInterval(() => {
+      count--;
+      if (count > 0) {
+        countdownOverlay.textContent = count;
+        playTone(520, 0.15, 'sine', 0.15);
+      } else if (count === 0) {
+        countdownOverlay.textContent = 'انطلق! 🏁';
+        playTone(880, 0.3, 'triangle', 0.2);
+      } else {
+        clearInterval(timer);
+        countdownOverlay.style.display = 'none';
+        state.mode = 'playing';
+        state.startTime = performance.now();
+      }
+    }, 750);
+  }
+
+  function finishRace() {
+    state.mode = 'finished';
+    updateEngineSound(0, false);
+    playTone(660, 0.2, 'triangle', 0.18);
+    setTimeout(() => playTone(880, 0.35, 'triangle', 0.2), 160);
+
+    const sec = ((performance.now() - state.startTime) / 1000).toFixed(1);
+    endTitle.textContent = state.rank === 1 ? '🏆 مبروك! المركز الأول!' : `🏁 أنهيت السباق في المركز ${state.rank}`;
+    endSummary.textContent = `اللاعب: ${state.playerName} • الزمن: ${sec} ثانية • الدورات: ${TOTAL_LAPS}/${TOTAL_LAPS}`;
+    btnResumeRace.style.display = 'none';
+    endOverlay.classList.remove('hidden');
+  }
+
+  function togglePause() {
+    if (state.mode === 'playing') {
+      state.mode = 'paused';
+      updateEngineSound(0, false);
+      endTitle.textContent = '⏸ السباق متوقف مؤقتاً';
+      endSummary.textContent = 'يمكنك متابعة السباق أو إعادته من البداية.';
+      btnResumeRace.style.display = 'inline-flex';
+      endOverlay.classList.remove('hidden');
+    } else if (state.mode === 'paused') {
+      endOverlay.classList.add('hidden');
+      state.mode = 'playing';
+    }
+  }
+
+  // ==================== PROJECTION & RENDERING HELPERS ====================
+  function project(p, camX, camY, camZ, width, height) {
+    p.camera.x = (p.world.x || 0) - camX;
+    p.camera.y = (p.world.y || 0) - camY;
+    p.camera.z = (p.world.z || 0) - camZ;
+    const scale = CAMERA_DEPTH / Math.max(1, p.camera.z);
+    p.screen.scale = scale;
+    p.screen.x = Math.round((width / 2) + (scale * p.camera.x * width / 2));
+    p.screen.y = Math.round((height / 2) - (scale * p.camera.y * height / 2));
+    p.screen.w = Math.round(scale * ROAD_WIDTH * width / 2);
+  }
+
+  function drawPolygon(x1, y1, x2, y2, x3, y3, x4, y4, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(x3, y3);
+    ctx.lineTo(x4, y4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawRoadSegment(width, lanes, x1, y1, w1, x2, y2, w2, color, isTunnel, segIndex = 0) {
+    const r1 = w1 / 8;
+    const r2 = w2 / 8;
+    const l1 = w1 / 42;
+    const l2 = w2 / 42;
+
+    // Clean stone curbs inside tunnel vs racing curbs outside
+    const curbColor = isTunnel ? '#57534e' : color.rumble;
+    drawPolygon(x1 - w1 - r1, y1, x1 - w1, y1, x2 - w2, y2, x2 - w2 - r2, y2, curbColor);
+    drawPolygon(x1 + w1 + r1, y1, x1 + w1, y1, x2 + w2, y2, x2 + w2 + r2, y2, curbColor);
+
+    // Asphalt road (smooth dark asphalt inside tunnel)
+    drawPolygon(x1 - w1, y1, x1 + w1, y1, x2 + w2, y2, x2 - w2, y2, isTunnel ? '#27272a' : color.road);
+
+    // Crisp white road edge lines
+    const edge1 = w1 * 0.025;
+    const edge2 = w2 * 0.025;
+    drawPolygon(x1 - w1 + edge1, y1, x1 - w1 + edge1 * 2.2, y1, x2 - w2 + edge2 * 2.2, y2, x2 - w2 + edge2, y2, 'rgba(248, 250, 252, 0.78)');
+    drawPolygon(x1 + w1 - edge1 * 2.2, y1, x1 + w1 - edge1, y1, x2 + w2 - edge2, y2, x2 + w2 - edge2 * 2.2, y2, 'rgba(248, 250, 252, 0.78)');
+
+    // Dashed lane lines
+    if (color.lane !== 'transparent') {
+      const lanew1 = w1 * 2 / lanes;
+      const lanew2 = w2 * 2 / lanes;
+      let lanex1 = x1 - w1 + lanew1;
+      let lanex2 = x2 - w2 + lanew2;
+      for (let i = 1; i < lanes; i++) {
+        drawPolygon(lanex1 - l1 / 2, y1, lanex1 + l1 / 2, y1, lanex2 + l2 / 2, y2, lanex2 - l2 / 2, y2, color.lane);
+        lanex1 += lanew1;
+        lanex2 += lanew2;
+      }
+    }
+
+    // Seamless Stone Tunnel (single uniform stone tone, zero alternating lines)
+    if (isTunnel) {
+      const archR1 = w1 * 1.16;
+      const archR2 = w2 * 1.16;
+
+      // Single uniform stone rock enclosure (no contrasting inner band = zero stripes)
+      ctx.fillStyle = '#44403c';
+      ctx.beginPath();
+      ctx.moveTo(0, y2);
+      ctx.lineTo(0, y1 + 2);
+      ctx.lineTo(x1 - archR1, y1 + 2);
+      ctx.arc(x1, y1 + 2, archR1, Math.PI, 0, false);
+      ctx.lineTo(width, y1 + 2);
+      ctx.lineTo(width, y2);
+      ctx.lineTo(x2 + archR2, y2);
+      ctx.arc(x2, y2, archR2, 0, Math.PI, true);
+      ctx.closePath();
+      ctx.fill();
+
+      // Subtle warm stone vault interior (same hue family, slightly shaded, overlapping cleanly)
+      ctx.fillStyle = '#292524';
+      ctx.beginPath();
+      ctx.moveTo(x1 - archR1, y1 + 2);
+      ctx.arc(x1, y1 + 2, archR1, Math.PI, 0, false);
+      ctx.lineTo(x2 + archR2, y2);
+      ctx.arc(x2, y2, archR2, 0, Math.PI, true);
+      ctx.closePath();
+      ctx.fill();
+
+      // Warm golden tunnel lamps spaced cleanly every 7 segments
+      if (segIndex % 7 === 0) {
+        const lx = (x1 + x2) * 0.5;
+        const ly = y2 - archR2 * 0.88;
+        const lw = Math.max(6, w2 * 0.20);
+        const lh = Math.max(3, w2 * 0.045);
+
+        ctx.save();
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 14;
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath();
+        ctx.roundRect(lx - lw * 0.5, ly, lw, lh, 2);
+        ctx.fill();
+
+        // Side stone-wall lanterns
+        const lr = Math.max(2, w2 * 0.032);
+        ctx.fillStyle = '#fb923c';
+        ctx.beginPath();
+        ctx.arc(x2 - archR2 * 0.90, y2 - archR2 * 0.30, lr, 0, Math.PI * 2);
+        ctx.arc(x2 + archR2 * 0.90, y2 - archR2 * 0.30, lr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+  }
+
+  function drawObstacle(x, y, scale, obs) {
+    const w = scale * 92000;
+    const h = w * 0.52;
+    if (w < 8 || w > 340) return;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, w * 0.52, h * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (obs.type === 'barrier') {
+      // Metal legs
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(-w * 0.40, -h * 0.35, w * 0.08, h * 0.35);
+      ctx.fillRect( w * 0.32, -h * 0.35, w * 0.08, h * 0.35);
+
+      // Red & White striped road barrier board
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.roundRect(-w * 0.48, -h * 0.92, w * 0.96, h * 0.56, 4);
+      ctx.fill();
+
+      ctx.fillStyle = '#dc2626';
+      for (const sx of [-0.42, -0.14, 0.14]) {
+        ctx.fillRect(w * sx, -h * 0.92, w * 0.14, h * 0.56);
+      }
+
+      // Top warning beacon light
+      const blink = Math.floor(performance.now() / 220) % 2 === 0;
+      ctx.fillStyle = blink ? '#facc15' : '#ea580c';
+      ctx.beginPath();
+      ctx.arc(0, -h * 1.02, Math.max(2, w * 0.07), 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Cluster of 2 bright orange reflective traffic cones
+      for (const cx of [-w * 0.22, w * 0.22]) {
+        ctx.fillStyle = '#ea580c';
+        ctx.beginPath();
+        ctx.moveTo(cx - w * 0.18, 0);
+        ctx.lineTo(cx - w * 0.05, -h * 0.95);
+        ctx.lineTo(cx + w * 0.05, -h * 0.95);
+        ctx.lineTo(cx + w * 0.18, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // White reflective band
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(cx - w * 0.10, -h * 0.56, w * 0.20, h * 0.20);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function drawSign(x, y, scale, sign) {
+    const s = Math.max(10, scale * 95000);
+    if (s < 8 || s > 260) return;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Post
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(-s * 0.06, -s * 1.1, s * 0.12, s * 1.1);
+
+    if (sign.type === 'speed') {
+      ctx.beginPath();
+      ctx.arc(0, -s * 1.25, s * 0.38, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffffff';
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, s * 0.08);
+      ctx.strokeStyle = '#ef4444';
+      ctx.stroke();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = `900 ${Math.round(s * 0.32)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sign.text, 0, -s * 1.25);
+    } else if (sign.type === 'wood') {
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(-s * 0.65, -s * 1.45, s * 1.3, s * 0.36);
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-s * 0.65, -s * 1.45, s * 1.3, s * 0.36);
+      ctx.fillStyle = '#fef3c7';
+      ctx.font = `800 ${Math.round(s * 0.18)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sign.text, 0, -s * 1.27);
+    } else {
+      // Warning diamond/circle
+      ctx.beginPath();
+      ctx.arc(0, -s * 1.25, s * 0.36, 0, Math.PI * 2);
+      ctx.fillStyle = '#facc15';
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, s * 0.07);
+      ctx.strokeStyle = '#0f172a';
+      ctx.stroke();
+      ctx.fillStyle = '#0f172a';
+      ctx.font = `900 ${Math.round(s * 0.32)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(sign.text, 0, -s * 1.25);
+    }
+
+    ctx.restore();
+  }
+
+  function drawBuilding(x, y, scale, variant = 0) {
+    const s = scale * 155000;
+    if (s < 10 || s > 520) return;
+
+    const styles = [
+      { w: 0.95, h: 2.25, body: '#1e293b', side: '#0f172a', roof: '#38bdf8', win: '#fde047' },
+      { w: 1.10, h: 1.75, body: '#334155', side: '#1e293b', roof: '#94a3b8', win: '#bae6fd' },
+      { w: 0.85, h: 2.65, body: '#0f172a', side: '#020617', roof: '#f59e0b', win: '#fef08a' },
+      { w: 1.05, h: 1.45, body: '#475569', side: '#334155', roof: '#e2e8f0', win: '#fde68a' }
+    ];
+    const st = styles[Math.abs(variant) % styles.length];
+    const bw = s * st.w;
+    const bh = s * st.h;
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Building ground shadow
+    ctx.fillStyle = 'rgba(2, 6, 23, 0.28)';
+    ctx.fillRect(-bw * 0.52, -s * 0.04, bw * 1.08, s * 0.08);
+
+    // Main facade
+    ctx.fillStyle = st.body;
+    ctx.fillRect(-bw * 0.5, -bh, bw, bh);
+
+    // 3D side depth panel
+    ctx.fillStyle = st.side;
+    ctx.fillRect(bw * 0.34, -bh, bw * 0.16, bh);
+
+    // Modern roof trim
+    ctx.fillStyle = st.roof;
+    ctx.fillRect(-bw * 0.52, -bh - s * 0.05, bw * 1.04, s * 0.06);
+
+    // Organized lit window grid
+    if (bw > 18) {
+      const cols = 4;
+      const rows = Math.max(3, Math.floor(st.h * 3.5));
+      const padX = bw * 0.12;
+      const padY = bh * 0.08;
+      const cellW = (bw * 0.72) / cols;
+      const cellH = (bh * 0.82) / rows;
+      ctx.fillStyle = st.win;
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          ctx.fillRect(
+            -bw * 0.44 + c * cellW + cellW * 0.18,
+            -bh + padY + r * cellH + cellH * 0.2,
+            cellW * 0.62,
+            cellH * 0.55
+          );
+        }
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function drawStreetLamp(x, y, scale, side) {
+    const s = scale * 115000;
+    if (s < 8 || s > 340) return;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(-s * 0.03, -s * 1.45, s * 0.06, s * 1.45);
+    // Arm pointing toward road
+    const armDir = side < 0 ? 1 : -1;
+    ctx.fillRect(0, -s * 1.45, armDir * s * 0.28, s * 0.045);
+    // Warm lamp glow
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(armDir * s * 0.26, -s * 1.41, Math.max(2, s * 0.055), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSpectatorCrowd(x, y, scale, side, seed = 0) {
+    const s = scale * 105000;
+    if (s < 8 || s > 280) return;
+
+    const now = performance.now() * 0.008;
+    const shirtColors = ['#ef4444', '#3b82f6', '#facc15', '#22c55e', '#f97316', '#ec4899'];
+
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Small wooden/metal spectator barrier
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(-s * 0.65, -s * 0.22, s * 1.3, s * 0.05);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(-s * 0.65, -s * 0.17, s * 1.3, s * 0.04);
+
+    // 3 Cheering Spectators
+    for (let i = -1; i <= 1; i++) {
+      const px = i * s * 0.36;
+      const bounce = Math.abs(Math.sin(now + seed + i * 1.3)) * s * 0.09;
+      const shirt = shirtColors[Math.abs(seed + i + 3) % shirtColors.length];
+
+      // Legs
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(px - s * 0.05, -s * 0.22, s * 0.04, s * 0.22);
+      ctx.fillRect(px + s * 0.01, -s * 0.22, s * 0.04, s * 0.22);
+
+      // Torso
+      ctx.fillStyle = shirt;
+      ctx.beginPath();
+      ctx.roundRect(px - s * 0.08, -s * 0.44 - bounce, s * 0.16, s * 0.24, 3);
+      ctx.fill();
+
+      // Head
+      ctx.fillStyle = '#fed7aa';
+      ctx.beginPath();
+      ctx.arc(px, -s * 0.51 - bounce, s * 0.065, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Waving Arms
+      const wave = Math.sin(now * 1.4 + seed + i) * s * 0.08;
+      ctx.strokeStyle = shirt;
+      ctx.lineWidth = Math.max(1.5, s * 0.04);
+      ctx.beginPath();
+      ctx.moveTo(px - s * 0.07, -s * 0.40 - bounce);
+      ctx.lineTo(px - s * 0.16, -s * 0.56 - bounce + wave);
+      ctx.moveTo(px + s * 0.07, -s * 0.40 - bounce);
+      ctx.lineTo(px + s * 0.16, -s * 0.58 - bounce - wave);
+      ctx.stroke();
+
+      // Middle spectator holds a cheering flag
+      if (i === 0) {
+        ctx.strokeStyle = '#f8fafc';
+        ctx.lineWidth = Math.max(1, s * 0.025);
+        ctx.beginPath();
+        ctx.moveTo(px + s * 0.15, -s * 0.54 - bounce);
+        ctx.lineTo(px + s * 0.18, -s * 0.85 - bounce);
+        ctx.stroke();
+        ctx.fillStyle = side < 0 ? '#ef4444' : '#38bdf8';
+        ctx.fillRect(px + s * 0.18, -s * 0.85 - bounce, s * 0.18, s * 0.11);
+      }
+    }
+
+    ctx.restore();
+  }
+
+  function drawTree(x, y, scale, variant = 0) {
+    const s = scale * 185000;
+    if (s < 10 || s > 560) return;
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Ground shadow on grass
+    ctx.fillStyle = 'rgba(2, 44, 34, 0.34)';
+    ctx.beginPath();
+    ctx.ellipse(s * 0.08, 0, s * 0.46, s * 0.11, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Textured trunk & branches
+    const trunkGrad = ctx.createLinearGradient(-s * 0.09, 0, s * 0.09, 0);
+    trunkGrad.addColorStop(0, '#451a03');
+    trunkGrad.addColorStop(0.5, '#78350f');
+    trunkGrad.addColorStop(1, '#451a03');
+    ctx.fillStyle = trunkGrad;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.09, 0);
+    ctx.lineTo(-s * 0.055, -s * 0.62);
+    ctx.lineTo(s * 0.055, -s * 0.62);
+    ctx.lineTo(s * 0.09, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    // Small branches
+    ctx.strokeStyle = '#5c2d0c';
+    ctx.lineWidth = Math.max(1.5, s * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.46);
+    ctx.lineTo(-s * 0.18, -s * 0.68);
+    ctx.moveTo(0, -s * 0.5);
+    ctx.lineTo(s * 0.17, -s * 0.7);
+    ctx.stroke();
+
+    if (variant % 2 === 0) {
+      // Realistic layered broadleaf tree
+      const clusters = [
+        { dx: -0.24, dy: -0.74, r: 0.25, c: '#14532d' },
+        { dx:  0.24, dy: -0.72, r: 0.24, c: '#14532d' },
+        { dx:  0.00, dy: -0.68, r: 0.28, c: '#166534' },
+        { dx: -0.18, dy: -0.92, r: 0.26, c: '#15803d' },
+        { dx:  0.18, dy: -0.90, r: 0.25, c: '#16a34a' },
+        { dx:  0.00, dy: -1.06, r: 0.29, c: '#22c55e' },
+        { dx: -0.06, dy: -1.12, r: 0.18, c: '#4ade80' }
+      ];
+      for (const cl of clusters) {
+        ctx.beginPath();
+        ctx.arc(s * cl.dx, s * cl.dy, s * cl.r, 0, Math.PI * 2);
+        ctx.fillStyle = cl.c;
+        ctx.fill();
+      }
+      // Bright visible fruits (oranges & red apples) on the large tree
+      const fruitColor = (variant % 4 === 0) ? '#f97316' : '#ef4444';
+      const fruits = [
+        { fx: -0.22, fy: -0.82 }, { fx: 0.19, fy: -0.78 },
+        { fx: -0.05, fy: -0.95 }, { fx: 0.12, fy: -1.02 },
+        { fx: -0.16, fy: -0.68 }, { fx: 0.04, fy: -0.74 }
+      ];
+      ctx.fillStyle = fruitColor;
+      for (const fr of fruits) {
+        ctx.beginPath();
+        ctx.arc(s * fr.fx, s * fr.fy, Math.max(2, s * 0.042), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Realistic layered pine / cypress tree
+      const tiers = [
+        { w: 0.42, y0: -0.46, y1: -0.84, c: '#14532d' },
+        { w: 0.34, y0: -0.68, y1: -1.06, c: '#166534' },
+        { w: 0.25, y0: -0.90, y1: -1.26, c: '#15803d' },
+        { w: 0.15, y0: -1.10, y1: -1.42, c: '#22c55e' }
+      ];
+      for (const t of tiers) {
+        ctx.fillStyle = t.c;
+        ctx.beginPath();
+        ctx.moveTo(-s * t.w, s * t.y0);
+        ctx.lineTo(0, s * t.y1);
+        ctx.lineTo(s * t.w, s * t.y0);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // Shared Realistic Ferrari GT Renderer
+  function drawFerrariSprite(w, h, palette, isPlayer, braking, nitroOn) {
+    // Ground Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, w * 0.54, h * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Wide Racing Rear Tires
+    ctx.fillStyle = '#090d16';
+    ctx.beginPath();
+    ctx.roundRect(-w * 0.50, -h * 0.28, w * 0.16, h * 0.30, 4);
+    ctx.roundRect( w * 0.34, -h * 0.28, w * 0.16, h * 0.30, 4);
+    ctx.fill();
+
+    // Carbon-fiber Lower Rear Diffuser & Fins
+    ctx.fillStyle = '#0f172a';
+    ctx.beginPath();
+    ctx.roundRect(-w * 0.44, -h * 0.28, w * 0.88, h * 0.24, 5);
+    ctx.fill();
+    ctx.fillStyle = '#334155';
+    for (const dx of [-0.22, -0.08, 0.08, 0.22]) {
+      ctx.fillRect(w * dx - 1, -h * 0.24, Math.max(1.5, w * 0.015), h * 0.18);
+    }
+
+    // Quad Chrome Exhaust Pipes
+    ctx.fillStyle = '#94a3b8';
+    for (const ex of [-0.30, -0.23, 0.23, 0.30]) {
+      ctx.beginPath();
+      ctx.arc(w * ex, -h * 0.15, Math.max(2, w * 0.025), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Wide Aerodynamic Ferrari Body (sculpted haunches)
+    const bodyGrad = ctx.createLinearGradient(0, -h * 0.82, 0, -h * 0.16);
+    bodyGrad.addColorStop(0, palette.light);
+    bodyGrad.addColorStop(0.45, palette.main);
+    bodyGrad.addColorStop(1, palette.dark);
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.49, -h * 0.22);
+    ctx.lineTo(-w * 0.47, -h * 0.56);
+    ctx.lineTo(-w * 0.35, -h * 0.72);
+    ctx.lineTo(-w * 0.25, -h * 0.96);
+    ctx.lineTo( w * 0.25, -h * 0.96);
+    ctx.lineTo( w * 0.35, -h * 0.72);
+    ctx.lineTo( w * 0.47, -h * 0.56);
+    ctx.lineTo( w * 0.49, -h * 0.22);
+    ctx.closePath();
+    ctx.fill();
+
+    // Racing Center Stripe
+    ctx.fillStyle = palette.stripe;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.05, -h * 0.96);
+    ctx.lineTo( w * 0.05, -h * 0.96);
+    ctx.lineTo( w * 0.07, -h * 0.28);
+    ctx.lineTo(-w * 0.07, -h * 0.28);
+    ctx.closePath();
+    ctx.fill();
+
+    // Rear Engine Glass Louver & Cockpit
+    const glassGrad = ctx.createLinearGradient(0, -h * 0.92, 0, -h * 0.62);
+    glassGrad.addColorStop(0, '#020617');
+    glassGrad.addColorStop(1, '#1e293b');
+    ctx.fillStyle = glassGrad;
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.23, -h * 0.91);
+    ctx.lineTo( w * 0.23, -h * 0.91);
+    ctx.lineTo( w * 0.30, -h * 0.64);
+    ctx.lineTo(-w * 0.30, -h * 0.64);
+    ctx.closePath();
+    ctx.fill();
+
+    // Side Mirrors
+    ctx.fillStyle = palette.dark;
+    ctx.fillRect(-w * 0.44, -h * 0.76, w * 0.08, h * 0.07);
+    ctx.fillRect( w * 0.36, -h * 0.76, w * 0.08, h * 0.07);
+
+    // Carbon Fiber GT Rear Wing / Spoiler
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(-w * 0.28, -h * 0.84, w * 0.035, h * 0.14);
+    ctx.fillRect( w * 0.245, -h * 0.84, w * 0.035, h * 0.14);
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.roundRect(-w * 0.45, -h * 0.89, w * 0.90, h * 0.075, 3);
+    ctx.fill();
+
+    // Signature Quad Circular Glowing Ferrari Taillights
+    ctx.save();
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = braking ? 16 : 9;
+    ctx.fillStyle = braking ? '#ff6b6b' : '#ef4444';
+    for (const tx of [-w * 0.37, -w * 0.26, w * 0.26, w * 0.37]) {
+      ctx.beginPath();
+      ctx.arc(tx, -h * 0.43, Math.max(2.2, w * 0.042), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fecaca';
+      ctx.beginPath();
+      ctx.arc(tx, -h * 0.43, Math.max(1, w * 0.016), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = braking ? '#ff6b6b' : '#ef4444';
+    }
+    ctx.restore();
+
+    // Ferrari Badge / Plate
+    if (w > 50) {
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(-w * 0.035, -h * 0.52, w * 0.07, h * 0.09);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(-w * 0.13, -h * 0.39, w * 0.26, h * 0.10);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = `800 ${Math.max(7, Math.round(w * 0.048))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(isPlayer ? 'FERRARI GT' : 'SCUDERIA', 0, -h * 0.34);
+    }
+
+    // Twin Blue Nitro Exhaust Flames
+    if (nitroOn) {
+      const flameLen = h * (0.45 + Math.random() * 0.25);
+      for (const fx of [-w * 0.26, w * 0.26]) {
+        const fGrad = ctx.createLinearGradient(fx, -h * 0.14, fx, -h * 0.14 + flameLen);
+        fGrad.addColorStop(0, '#e0f2fe');
+        fGrad.addColorStop(0.45, '#38bdf8');
+        fGrad.addColorStop(1, 'rgba(37, 99, 235, 0)');
+        ctx.fillStyle = fGrad;
+        ctx.beginPath();
+        ctx.moveTo(fx - w * 0.04, -h * 0.14);
+        ctx.lineTo(fx + w * 0.04, -h * 0.14);
+        ctx.lineTo(fx, -h * 0.14 + flameLen);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawOpponentCar(x, y, scale, car, label) {
+    const w = scale * 130000;
+    const h = w * 0.56;
+    if (w < 10 || w > 430) return;
+
+    ctx.save();
+    ctx.translate(x, y);
+    drawFerrariSprite(
+      w, h,
+      { main: car.color || '#1d4ed8', dark: car.colorDark || '#1e3a8a', light: car.colorLight || '#60a5fa', stripe: car.stripe || '#ffffff' },
+      false, false, false
+    );
+
+    if (w > 28 && label) {
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.82)';
+      ctx.font = `700 ${Math.max(10, Math.round(w * 0.12))}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(label, 0, -h * 1.12);
+    }
+    ctx.restore();
+  }
+
+  // Player Ferrari GT (Metallic Blue Racing Livery)
+  function drawPlayerCar(cx, cy, width) {
+    const carW = Math.min(235, Math.max(135, width * 0.28));
+    const carH = carW * 0.54;
+    const bounce = state.speed > 100 ? Math.sin(performance.now() * 0.04) * 1.6 : 0;
+
+    ctx.save();
+    ctx.translate(cx, cy + bounce);
+    ctx.rotate(state.steerVisual * 0.08);
+
+    // Tire skid marks when turning hard or braking
+    if ((Math.abs(state.steerVisual) > 0.5 || state.keys.brake) && state.speed > 2500) {
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+      ctx.fillRect(-carW * 0.38, 2, carW * 0.14, 34);
+      ctx.fillRect(carW * 0.24, 2, carW * 0.14, 34);
+    }
+
+    const nitroOn = state.nitroActive || (state.keys.gas && state.speed > 7800);
+    drawFerrariSprite(
+      carW, carH,
+      { main: '#2563eb', dark: '#1e3a8a', light: '#60a5fa', stripe: '#f8fafc' },
+      true, state.keys.brake, nitroOn
+    );
+
+    ctx.restore();
+  }
+
+  // ==================== UPDATE & PHYSICS LOOP ====================
+  let lastTime = performance.now();
+  let syncCounter = 0;
+
+  function update(dt) {
+    if (state.mode !== 'playing') {
+      updateEngineSound(0, false);
+      return;
+    }
+
+    // Steering
+    const steerSpeed = 2.1 * (state.speed / state.maxSpeed);
+    let steerDir = 0;
+    if (state.keys.left) steerDir -= 1;
+    if (state.keys.right) steerDir += 1;
+
+    state.steerVisual += (steerDir - state.steerVisual) * Math.min(1, dt * 10);
+    state.playerX += steerDir * steerSpeed * dt;
+
+    // Centrifugal curve pull
+    const playerSeg = segments[Math.floor(state.position / SEGMENT_LENGTH) % segments.length];
+    state.playerX -= (dt * 1.15 * (state.speed / state.maxSpeed) * playerSeg.curve * 0.38);
+
+    // Nitro
+    if (state.keys.nitro && state.nitro > 4 && state.speed > 1500) {
+      state.nitroActive = true;
+      state.nitro = Math.max(0, state.nitro - 28 * dt);
+    } else {
+      state.nitroActive = false;
+      state.nitro = Math.min(100, state.nitro + 8 * dt);
+    }
+
+    // Acceleration & Braking
+    const topSpeed = state.nitroActive ? state.maxSpeed * 1.25 : state.maxSpeed;
+    if (state.keys.gas || state.nitroActive) {
+      state.speed += (state.nitroActive ? 9500 : 5800) * dt;
+    } else if (state.keys.brake) {
+      state.speed -= 12500 * dt;
+    } else {
+      state.speed -= 2400 * dt;
+    }
+
+    // Off-road grass slowdown
+    if (Math.abs(state.playerX) > 1.02) {
+      state.speed -= 5200 * dt;
+    }
+
+    state.playerX = Math.max(-1.65, Math.min(1.65, state.playerX));
+    state.speed = Math.max(0, Math.min(topSpeed, state.speed));
+
+    const prevPos = state.position;
+    state.position += state.speed * dt;
+    state.totalDistance += state.speed * dt;
+
+    if (state.position >= trackLength) {
+      state.position -= trackLength;
+      if (state.lap < TOTAL_LAPS) {
+        state.lap++;
+        playTone(740, 0.2, 'triangle', 0.16);
+        showToast(`🏁 الدورة ${state.lap} من ${TOTAL_LAPS}!`);
+      } else {
+        finishRace();
+        return;
+      }
+    }
+
+    // Road Sign Alert
+    const segIdx = Math.floor(state.position / SEGMENT_LENGTH) % segments.length;
+    const lookAheadIdx = (segIdx + 10) % segments.length;
+    const aheadSeg = segments[lookAheadIdx];
+    if (aheadSeg && aheadSeg.sign && aheadSeg.sign.alert && state.lastAlertIndex !== lookAheadIdx) {
+      state.lastAlertIndex = lookAheadIdx;
+      roadSignAlert.textContent = aheadSeg.sign.alert;
+      roadSignAlert.classList.add('visible');
+      state.alertTimer = 2.4;
+    }
+    if (state.alertTimer > 0) {
+      state.alertTimer -= dt;
+      if (state.alertTimer <= 0) {
+        roadSignAlert.classList.remove('visible');
+      }
+    }
+
+    // Update 4 Coordinated Ferrari AI Cars (lane discipline & smooth overtaking)
+    for (let i = 0; i < aiCars.length; i++) {
+      const car = aiCars[i];
+      const diff = (state.totalDistance - car.z);
+      let targetSpd = car.baseSpeed + Math.max(-900, Math.min(1800, diff * 0.22));
+
+      // Check for slower car ahead in the same lane to avoid overlap
+      let blocked = false;
+      for (let j = 0; j < aiCars.length; j++) {
+        if (i === j) continue;
+        const other = aiCars[j];
+        const gap = other.z - car.z;
+        if (gap > 0 && gap < 520 && Math.abs(other.offset - car.offset) < 0.34) {
+          blocked = true;
+          targetSpd = Math.min(targetSpd, other.speed * 0.92);
+          break;
+        }
+      }
+
+      if (blocked && Math.abs(car.offset - car.targetOffset) < 0.05) {
+        const freeLanes = [0, 1, 2, 3].filter(l => {
+          const lx = LANE_CENTERS[l];
+          return !aiCars.some(o => o !== car && Math.abs(o.z - car.z) < 420 && Math.abs(o.offset - lx) < 0.32);
+        });
+        if (freeLanes.length) {
+          car.lane = freeLanes[Math.floor(Math.random() * freeLanes.length)];
+          car.targetOffset = LANE_CENTERS[car.lane];
+        }
+      }
+
+      car.speed += (targetSpd - car.speed) * dt * 1.8;
+      car.z += car.speed * dt;
+      if (car.z >= trackLength * TOTAL_LAPS) car.z -= trackLength * 0.5;
+      car.offset += (car.targetOffset - car.offset) * dt * 2.6;
+
+      // AI dodges obstacles ahead smoothly
+      for (const obs of obstacles) {
+        const odz = obs.z - (car.z % trackLength);
+        if (odz > 0 && odz < 700 && Math.abs(obs.offset - car.offset) < 0.28) {
+          const altLanes = [0, 1, 2, 3].filter(l => l !== obs.lane);
+          car.lane = altLanes[Math.floor(Math.random() * altLanes.length)];
+          car.targetOffset = LANE_CENTERS[car.lane];
+          break;
+        }
+      }
+
+      // Collision check with player
+      const carTrackZ = car.z % trackLength;
+      const dz = Math.abs(carTrackZ - state.position);
+      if (dz < 220 && Math.abs(car.offset - state.playerX) < 0.26) {
+        state.speed *= 0.65;
+        state.playerX += (state.playerX < car.offset ? -0.22 : 0.22);
+        playTone(130, 0.18, 'sawtooth', 0.22);
+      }
+    }
+
+    // Player obstacle warning & collision check
+    for (const obs of obstacles) {
+      if (obs.hitCooldown > 0) {
+        obs.hitCooldown = Math.max(0, obs.hitCooldown - dt);
+        continue;
+      }
+      const dz = obs.z - state.position;
+      if (dz > 900 && dz < 1400 && state.alertTimer <= 0) {
+        roadSignAlert.textContent = '⚠️ حاجز في الطريق - تجنبه!';
+        roadSignAlert.classList.add('visible');
+        state.alertTimer = 1.6;
+      }
+      if (Math.abs(dz) < 165 && Math.abs(obs.offset - state.playerX) < 0.24) {
+        obs.hitCooldown = 2.0;
+        state.speed *= 0.45;
+        state.playerX += (state.playerX < obs.offset ? -0.18 : 0.18);
+        playTone(110, 0.24, 'sawtooth', 0.28);
+        showToast('💥 اصطدمت بحاجز! تفادَ الحواجز للفوز');
+      }
+    }
+
+    // Compute live Rank (1 to 5)
+    let aheadCount = 0;
+    for (const car of aiCars) {
+      if (car.z > state.totalDistance) aheadCount++;
+    }
+    if (remotePlayer.connected) {
+      const remoteTotal = (remotePlayer.lap - 1) * trackLength + remotePlayer.z;
+      if (remoteTotal > state.totalDistance) aheadCount++;
+    }
+    state.rank = 1 + aheadCount;
+
+    // Update HUD
+    const totalRacers = remotePlayer.connected ? 6 : 5;
+    hudPos.textContent = `${state.rank}/${totalRacers}`;
+    hudLap.textContent = `${state.lap}/${TOTAL_LAPS}`;
+    hudDist.textContent = `${Math.floor(state.totalDistance / 100)} م`;
+    hudSpeed.textContent = Math.round((state.speed / state.maxSpeed) * 260);
+    nitroFill.style.width = `${Math.round(state.nitro)}%`;
+
+    // Update Track Progress Bar (Start -> Finish)
+    const totalRaceLen = Math.max(1, trackLength * TOTAL_LAPS);
+    const pPct = Math.max(0, Math.min(100, (state.totalDistance / totalRaceLen) * 100));
+    trackProgressFill.style.width = pPct.toFixed(1) + '%';
+    trackProgressPct.textContent = Math.round(pPct) + '%';
+    dotPlayer.style.left = pPct.toFixed(1) + '%';
+    for (let i = 0; i < aiCars.length; i++) {
+      const aPct = Math.max(0, Math.min(100, (aiCars[i].z / totalRaceLen) * 100));
+      if (dotAis[i]) dotAis[i].style.left = aPct.toFixed(1) + '%';
+    }
+
+    updateEngineSound(state.speed / state.maxSpeed, true);
+
+    // Online sync every ~3 frames
+    syncCounter++;
+    if (state.isOnline && syncCounter % 3 === 0) {
+      sendSyncPacket();
+    }
+  }
+
+  function render() {
+    const w = canvas.width;
+    const h = canvas.height;
+    if (!w || !h) return;
+
+    const horizonY = h * 0.52;
+
+    // Warm golden-blue sky gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+    skyGrad.addColorStop(0, '#0284c7');
+    skyGrad.addColorStop(0.55, '#38bdf8');
+    skyGrad.addColorStop(0.85, '#bae6fd');
+    skyGrad.addColorStop(1, '#fde68a');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, horizonY + 4);
+
+    // Smooth uniform green ground (eliminates horizontal green stripes)
+    const groundGrad = ctx.createLinearGradient(0, horizonY, 0, h);
+    groundGrad.addColorStop(0, '#166534');
+    groundGrad.addColorStop(0.35, '#15803d');
+    groundGrad.addColorStop(1, '#14532d');
+    ctx.fillStyle = groundGrad;
+    ctx.fillRect(0, horizonY, w, h - horizonY);
+
+    // Glowing Sun Ahead on the Horizon
+    const sunX = w * 0.5;
+    const sunY = horizonY - h * 0.08;
+    const sunR = Math.min(w, h) * 0.085;
+    const sunGlow = ctx.createRadialGradient(sunX, sunY, sunR * 0.2, sunX, sunY, sunR * 3.4);
+    sunGlow.addColorStop(0, 'rgba(254, 249, 195, 0.98)');
+    sunGlow.addColorStop(0.28, 'rgba(253, 224, 71, 0.72)');
+    sunGlow.addColorStop(0.6, 'rgba(251, 146, 60, 0.25)');
+    sunGlow.addColorStop(1, 'rgba(251, 146, 60, 0)');
+    ctx.fillStyle = sunGlow;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR * 3.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#fef9c3';
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glowing Moon in the upper sky with "sliman game"
+    const moonR = Math.max(28, Math.min(w, h) * 0.085);
+    const moonX = w * 0.16;
+    const moonY = horizonY * 0.34;
+
+    const moonGlow = ctx.createRadialGradient(moonX, moonY, moonR * 0.4, moonX, moonY, moonR * 1.9);
+    moonGlow.addColorStop(0, 'rgba(248, 250, 252, 0.92)');
+    moonGlow.addColorStop(0.55, 'rgba(226, 232, 240, 0.35)');
+    moonGlow.addColorStop(1, 'rgba(226, 232, 240, 0)');
+    ctx.fillStyle = moonGlow;
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR * 1.9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.save();
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Subtle moon craters
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.25)';
+    ctx.beginPath();
+    ctx.arc(moonX - moonR * 0.35, moonY - moonR * 0.28, moonR * 0.16, 0, Math.PI * 2);
+    ctx.arc(moonX + moonR * 0.32, moonY + moonR * 0.30, moonR * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // "sliman game" text on the Moon
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `900 ${Math.max(9, Math.round(moonR * 0.28))}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('sliman game', moonX, moonY);
+    ctx.restore();
+
+    // Distant City Skyline on the Horizon
+    const skylineBuildings = [
+      { x: 0.04, w: 0.045, h: 0.11 }, { x: 0.09, w: 0.05, h: 0.16 },
+      { x: 0.15, w: 0.04, h: 0.09 },  { x: 0.20, w: 0.055, h: 0.19 },
+      { x: 0.27, w: 0.045, h: 0.13 }, { x: 0.33, w: 0.05, h: 0.08 },
+      { x: 0.62, w: 0.05, h: 0.10 },  { x: 0.68, w: 0.055, h: 0.18 },
+      { x: 0.75, w: 0.045, h: 0.14 }, { x: 0.81, w: 0.05, h: 0.20 },
+      { x: 0.87, w: 0.045, h: 0.12 }, { x: 0.92, w: 0.05, h: 0.15 }
+    ];
+    for (const b of skylineBuildings) {
+      const bx = w * b.x;
+      const bw = w * b.w;
+      const bh = h * b.h;
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(bx, horizonY - bh, bw, bh);
+      ctx.fillStyle = 'rgba(253, 224, 71, 0.45)';
+      for (let wy = horizonY - bh + 6; wy < horizonY - 6; wy += 9) {
+        for (let wx = bx + 4; wx < bx + bw - 5; wx += 7) {
+          ctx.fillRect(wx, wy, 3, 4);
+        }
+      }
+    }
+
+    const baseSegment = segments[Math.floor(state.position / SEGMENT_LENGTH) % segments.length];
+    const basePercent = (state.position % SEGMENT_LENGTH) / SEGMENT_LENGTH;
+    const playerY = baseSegment.p1.world.y + (baseSegment.p2.world.y - baseSegment.p1.world.y) * basePercent;
+
+    let maxy = h;
+    let x = 0;
+    let dx = -(baseSegment.curve * basePercent);
+
+    // Project & draw road segments front-to-back, then collect sprites
+    const visibleSegs = [];
+    for (let n = 0; n < DRAW_DISTANCE; n++) {
+      const seg = segments[(baseSegment.index + n) % segments.length];
+      const looped = seg.index < baseSegment.index;
+      const camZ = state.position - (looped ? trackLength : 0);
+
+      project(seg.p1, state.playerX * ROAD_WIDTH - x, playerY + CAMERA_HEIGHT, camZ, w, h);
+      project(seg.p2, state.playerX * ROAD_WIDTH - x - dx, playerY + CAMERA_HEIGHT, camZ, w, h);
+
+      x += dx;
+      dx += seg.curve;
+
+      if (seg.p1.camera.z <= CAMERA_DEPTH || seg.p2.screen.y >= maxy || seg.p2.screen.y >= seg.p1.screen.y) {
+        continue;
+      }
+
+      drawRoadSegment(
+        w, LANES,
+        seg.p1.screen.x, seg.p1.screen.y, seg.p1.screen.w,
+        seg.p2.screen.x, seg.p2.screen.y, seg.p2.screen.w,
+        seg.color, seg.tunnel, seg.index
+      );
+      visibleSegs.push(seg);
+      maxy = seg.p2.screen.y;
+    }
+
+    // Draw back-to-front scenery, signs, AI cars & remote friend car
+    for (let i = visibleSegs.length - 1; i >= 0; i--) {
+      const seg = visibleSegs[i];
+      const sy = seg.p1.screen.y;
+      const sx = seg.p1.screen.x;
+      const sw = seg.p1.screen.w;
+      const sc = seg.p1.screen.scale;
+
+      // Organized Roadside City Buildings
+      if (seg.buildings && seg.buildings.length) {
+        for (const side of seg.buildings) {
+          drawBuilding(sx + side * sw * 2.25, sy, sc, seg.index + (side > 0 ? 1 : 0));
+        }
+      }
+
+      // Roadside Streetlamps
+      if (seg.lamps && seg.lamps.length) {
+        for (const side of seg.lamps) {
+          drawStreetLamp(sx + side * sw * 1.18, sy, sc, side);
+        }
+      }
+
+      // Large Fruit Trees along the roadside
+      if (seg.trees && seg.trees.length) {
+        for (const side of seg.trees) {
+          drawTree(sx + side * sw * 1.55, sy, sc, seg.index + (side > 0 ? 1 : 0));
+        }
+      }
+
+      // Cheering Spectators on the Roadside
+      if (seg.crowd && seg.crowd.length) {
+        for (const side of seg.crowd) {
+          drawSpectatorCrowd(sx + side * sw * 1.24, sy, sc, side, seg.index + side);
+        }
+      }
+
+      // Road Guidance Signs
+      if (seg.sign) {
+        drawSign(sx + seg.sign.side * sw * 1.24, sy, sc, seg.sign);
+      }
+
+      // Road Obstacles on this segment
+      for (const obs of obstacles) {
+        if (obs.segIdx === seg.index && obs.hitCooldown <= 0) {
+          drawObstacle(sx + obs.offset * sw, sy, sc, obs);
+        }
+      }
+
+      // AI Cars on this segment
+      for (const car of aiCars) {
+        const carSegIdx = Math.floor((car.z % trackLength) / SEGMENT_LENGTH);
+        if (carSegIdx === seg.index) {
+          drawOpponentCar(sx + car.offset * sw, sy, sc, car, car.name);
+        }
+      }
+
+      // Online Friend Car
+      if (remotePlayer.connected) {
+        const remSegIdx = Math.floor((remotePlayer.z % trackLength) / SEGMENT_LENGTH);
+        if (remSegIdx === seg.index) {
+          drawOpponentCar(sx + remotePlayer.offset * sw, sy, sc, {
+            color: '#38bdf8', accent: '#0369a1', type: 'sport'
+          }, '🌐 ' + remotePlayer.name);
+        }
+      }
+    }
+
+    // Draw Player Supercar at bottom center
+    drawPlayerCar(w / 2, h - 18, w);
+  }
+
+  function loop(now) {
+    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    lastTime = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // ==================== INPUT HANDLERS ====================
+  function resizeCanvas() {
+    canvas.width = appEl.clientWidth || window.innerWidth;
+    canvas.height = appEl.clientHeight || window.innerHeight;
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') state.keys.left = true;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.keys.right = true;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') state.keys.gas = true;
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') state.keys.brake = true;
+    if (e.key === ' ' || e.key === 'Shift') {
+      if (state.mode === 'playing') e.preventDefault();
+      state.keys.nitro = true;
+    }
+    if (e.key === 'p' || e.key === 'P') togglePause();
+    if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') state.keys.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') state.keys.right = false;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') state.keys.gas = false;
+    if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') state.keys.brake = false;
+    if (e.key === ' ' || e.key === 'Shift') state.keys.nitro = false;
+  });
+
+  function bindTouchButton(el, keyName) {
+    const onDown = (e) => {
+      e.preventDefault();
+      initAudio();
+      state.keys[keyName] = true;
+      el.classList.add('active');
+    };
+    const onUp = (e) => {
+      e.preventDefault();
+      state.keys[keyName] = false;
+      el.classList.remove('active');
+    };
+    el.addEventListener('touchstart', onDown, { passive: false });
+    el.addEventListener('touchend', onUp, { passive: false });
+    el.addEventListener('touchcancel', onUp, { passive: false });
+    el.addEventListener('mousedown', onDown);
+    el.addEventListener('mouseup', onUp);
+    el.addEventListener('mouseleave', onUp);
+  }
+
+  bindTouchButton(document.getElementById('btnLeft'), 'left');
+  bindTouchButton(document.getElementById('btnRight'), 'right');
+  bindTouchButton(document.getElementById('btnGas'), 'gas');
+  bindTouchButton(document.getElementById('btnBrake'), 'brake');
+  bindTouchButton(document.getElementById('btnNitro'), 'nitro');
+
+  // ==================== UI BUTTON EVENTS ====================
+  btnToggleTouch.addEventListener('click', () => {
+    touchControls.classList.toggle('hidden');
+  });
+
+  btnSound.addEventListener('click', () => {
+    soundEnabled = !soundEnabled;
+    btnSound.textContent = soundEnabled ? '🔊' : '🔇';
+    if (!soundEnabled) updateEngineSound(0, false);
+    else initAudio();
+  });
+
+  btnFullscreen.addEventListener('click', toggleFullscreen);
+  btnPause.addEventListener('click', togglePause);
+
+  document.getElementById('btnStartSolo').addEventListener('click', () => startRace(false));
+  document.getElementById('btnOpenMulti').addEventListener('click', () => {
+    menuOverlay.classList.add('hidden');
+    multiOverlay.classList.remove('hidden');
+  });
+  document.getElementById('btnBackMenu').addEventListener('click', () => {
+    multiOverlay.classList.add('hidden');
+    menuOverlay.classList.remove('hidden');
+  });
+
+  document.getElementById('btnCreateRoom').addEventListener('click', createOnlineRoom);
+  document.getElementById('btnJoinRoom').addEventListener('click', joinOnlineRoom);
+  document.getElementById('btnCopyCode').addEventListener('click', () => {
+    if (!currentRoomCode) return;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(currentRoomCode).then(() => showToast('تم نسخ الكود: ' + currentRoomCode));
+    } else {
+      const inp = document.createElement('input');
+      inp.value = currentRoomCode;
+      document.body.appendChild(inp);
+      inp.select();
+      document.execCommand('copy');
+      document.body.removeChild(inp);
+      showToast('تم نسخ الكود: ' + currentRoomCode);
+    }
+  });
+
+  btnStartMultiRace.addEventListener('click', () => {
+    if (conn && conn.open) conn.send({ type: 'start' });
+    if (bc) bc.postMessage({ type: 'start', sender: peerIdSelf });
+    multiOverlay.classList.add('hidden');
+    startRace(true);
+  });
+
+  btnRestartRace.addEventListener('click', () => startRace(state.isOnline));
+  btnResumeRace.addEventListener('click', togglePause);
+  document.getElementById('btnEndToMenu').addEventListener('click', () => {
+    state.mode = 'menu';
+    endOverlay.classList.add('hidden');
+    menuOverlay.classList.remove('hidden');
+  });
+
+  // Share buttons
+  document.getElementById('btnTopWa').addEventListener('click', () => shareWhatsApp(false));
+  document.getElementById('btnTopFb').addEventListener('click', () => shareFacebook(false));
+  document.getElementById('btnShareWaMenu').addEventListener('click', () => shareWhatsApp(false));
+  document.getElementById('btnShareFbMenu').addEventListener('click', () => shareFacebook(false));
+  document.getElementById('btnShareWaEnd').addEventListener('click', () => shareWhatsApp(false));
+  document.getElementById('btnShareFbEnd').addEventListener('click', () => shareFacebook(false));
+  document.getElementById('btnInviteWa').addEventListener('click', () => shareWhatsApp(true));
+  document.getElementById('btnInviteFb').addEventListener('click', () => shareFacebook(true));
+
+  // ==================== INIT ====================
+  window.onload = () => {
+    buildTrack();
+    resizeCanvas();
+    requestAnimationFrame(loop);
+  };
+})();
+</script>
+</body>
+</html>
